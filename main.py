@@ -1,37 +1,16 @@
 import asyncio
 import aiohttp
-import re
-import json
-import os
-from aiogram import Bot, Dispatcher
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
 # ===== НАСТРОЙКИ =====
 TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
-GROUP_ID = "vrv_radar"  # пример публичной группы
-ADMIN_ID = 1913014542
+GROUP_ID = "vrv_radar"  # публичная группа ВК
+ADMIN_ID = 1913014542    # ID администратора
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
-SUBSCRIBERS_FILE = "subscribers.json"
-POSTS_FILE = "posts.json"
-CHECK_INTERVAL = 60  # проверка каждые 60 секунд
-
-# ===== ЗАГРУЗКА / СОХРАНЕНИЕ =====
-def load_json(file):
-    if os.path.exists(file):
-        with open(file, "r", encoding="utf-8") as f:
-            return set(json.load(f))
-    return set()
-
-def save_json(file, data):
-    with open(file, "w", encoding="utf-8") as f:
-        json.dump(list(data), f)
-
-subscribers = load_json(SUBSCRIBERS_FILE)
-sent_posts = load_json(POSTS_FILE)
 
 # ===== КНОПКИ =====
 keyboard = ReplyKeyboardMarkup(
@@ -44,46 +23,25 @@ keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# ===== НОРМАЛИЗАЦИЯ =====
-def normalize(text):
-    text = text.lower()
-    text = text.replace("ё", "е")
-    text = text.replace("\xa0", " ")
-    text = text.replace("\n", " ")
-    text = text.replace("\r", " ")
-    text = re.sub(r"[^а-яa-z0-9\s]", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+# ===== ПОДПИСЧИКИ =====
+subscribers = set()
+sent_posts = set()
 
-# ===== ОПРЕДЕЛЕНИЕ СОБЫТИЙ =====
-def detect_event(text):
-    text_norm = normalize(text)
+# ===== ФУНКЦИИ =====
+def detect_event(text: str):
+    """
+    Определяет событие по тексту поста (учитывает многострочные посты)
+    """
+    text_normalized = text.replace("\n", " ").lower()
 
-    is_samara = any(w in text_norm for w in ["самарск", "тольятти"])
-    is_bpla = any(w in text_norm for w in ["бпла", "беспилот", "дрон", "коптер"])
-    is_raketa = any(w in text_norm for w in ["ракет", "пво"])
-    is_otboy = any(w in text_norm for w in ["отбой", "отмена"])
-    is_opasnost = any(w in text_norm for w in ["опасност", "угроз"])
-
-    print("\n=== ПРОВЕРКА ПОСТА ===")
-    print("ОРИГИНАЛ:", repr(text))
-    print("НОРМАЛ:", text_norm)
-    print(f"SAMARA:{is_samara} | BPLA:{is_bpla} | RAKETA:{is_raketa} | OPASNOST:{is_opasnost} | OTBOY:{is_otboy}")
-
-    if is_samara:
-        if is_bpla and is_otboy:
-            return "bpla_off"
-        if is_bpla and is_opasnost:
-            return "bpla_on"
-        if is_raketa and is_otboy:
-            return "raketa_off"
-        if is_raketa and is_opasnost:
-            return "raketa_on"
-
+    if "самарская область" in text_normalized:
+        if "бпла" in text_normalized:
+            return "bpla_off" if "отбой" in text_normalized else "bpla_on"
+        if "ракетная" in text_normalized:
+            return "raketa_off" if "отбой" in text_normalized else "raketa_on"
     return None
 
-# ===== ТЕКСТЫ СОБЫТИЙ =====
-def get_message(event):
+def get_message(event: str):
     return {
         "bpla_on": "❗ВНИМАНИЕ! В Самарской области объявлена опасность атаки БПЛА!\n\nБудьте бдительны! Тел. 112.",
         "bpla_off": "✅ ВНИМАНИЕ! В Самарской области отбой опасности атаки БПЛА!",
@@ -91,71 +49,60 @@ def get_message(event):
         "raketa_off": "✅ ВНИМАНИЕ! В Самарской области отбой ракетной опасности!"
     }.get(event)
 
-# ===== РАССЫЛКА =====
-async def send_to_all(text):
-    print("\n=== РАССЫЛКА ===")
-    print(text)
-    print("Подписчиков:", len(subscribers))
-    for user in list(subscribers):
+async def send_to_all(text: str):
+    for user in subscribers:
         try:
             await bot.send_message(user, text)
-            print("✔ отправлено:", user)
         except Exception as e:
-            print("❌ ошибка при отправке:", e)
+            print(f"❌ Ошибка отправки {user}: {e}")
+    print(f"💬 Сообщение отправлено всем подписчикам: {text}")
 
-# ===== ПАРСЕР VK =====
+# ===== VK ПАРСЕР =====
 async def vk_parser():
-    url = f"https://vk.com/vrv_radar?act=wall&offset=0&count=10"
-    headers = {"User-Agent": "Mozilla/5.0"}
-
-    async with aiohttp.ClientSession(headers=headers) as session:
+    url = f"https://api.vk.com/method/wall.get?domain=vrv_radar&count=10&v=5.131"
+    async with aiohttp.ClientSession() as session:
         while True:
             try:
                 async with session.get(url) as resp:
                     data = await resp.json()
-                    posts = data.get("payload", [None, [None, []]])[1][0]
-
+                    posts = data.get("response", {}).get("items", [])
                     for post in posts:
-                        post_id = str(post["id"])
+                        post_id = post["id"]
                         text = post.get("text", "")
+                        print(f"🔹 Проверка поста {post_id}:\n{text}")
 
                         if post_id in sent_posts:
                             continue
 
-                        print("\n==============================")
-                        print("📩 НОВЫЙ ПОСТ:")
-                        print(text)
-
                         event = detect_event(text)
                         if event:
-                            print("✅ СОБЫТИЕ НАЙДЕНО:", event)
                             await send_to_all(get_message(event))
-                        else:
-                            print("❌ ПРОПУЩЕНО (не подошёл фильтр)")
+                            print(f"✅ Событие найдено: {event}")
 
                         sent_posts.add(post_id)
 
-                    save_json(POSTS_FILE, sent_posts)
-
             except Exception as e:
-                print("❌ ОШИБКА VK:", e)
+                print(f"❌ Ошибка VK: {e}")
 
-            print("\n⏱ Проверка новых постов через 60 секунд...")
-            await asyncio.sleep(CHECK_INTERVAL)
+            print("⏱ Проверка новых постов через 60 секунд...")
+            await asyncio.sleep(60)
 
-# ===== СТАРТ =====
+# ===== ТЕЛЕГРАМ КОМАНДЫ =====
 @dp.message(Command("start"))
 async def start(message: Message):
-    subscribers.add(message.from_user.id)
-    save_json(SUBSCRIBERS_FILE, subscribers)
-    if message.from_user.id == ADMIN_ID:
+    user_id = message.from_user.id
+    subscribers.add(user_id)
+    print(f"🔔 Подписался пользователь: {user_id}")
+
+    if user_id == ADMIN_ID:
         await message.answer("✅ Ты админ", reply_markup=keyboard)
     else:
         await message.answer("🔔 Ты подписан на оповещения")
 
 @dp.message()
-async def handle(message: Message):
-    if message.from_user.id != ADMIN_ID:
+async def handle_buttons(message: Message):
+    user_id = message.from_user.id
+    if user_id != ADMIN_ID:
         return
 
     mapping = {
