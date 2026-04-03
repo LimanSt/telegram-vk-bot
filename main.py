@@ -29,9 +29,7 @@ sent_posts = set()
 
 # ===== ФУНКЦИИ =====
 def detect_event(text: str):
-    """
-    Определяет событие по тексту поста (учитывает многострочные посты)
-    """
+    """Определяет событие по тексту поста (многострочные учитываются)"""
     text_normalized = text.replace("\n", " ").lower()
 
     if "самарская область" in text_normalized:
@@ -66,25 +64,35 @@ async def vk_parser():
                 async with session.get(url) as resp:
                     data = await resp.json()
                     posts = data.get("response", {}).get("items", [])
-                    for post in posts:
-                        post_id = post["id"]
-                        text = post.get("text", "")
-                        print(f"🔹 Проверка поста {post_id}:\n{text}")
 
-                        if post_id in sent_posts:
-                            continue
+                    if not posts:
+                        print("⏱ Проверка новых постов через 60 секунд... Нет новых постов.")
+                    else:
+                        new_posts_found = False
+                        for post in posts:
+                            post_id = post["id"]
+                            text = post.get("text", "")
+                            print(f"🔹 Проверка поста {post_id}:\n{text}")
 
-                        event = detect_event(text)
-                        if event:
-                            await send_to_all(get_message(event))
-                            print(f"✅ Событие найдено: {event}")
+                            if post_id in sent_posts:
+                                continue
 
-                        sent_posts.add(post_id)
+                            event = detect_event(text)
+                            if event:
+                                await send_to_all(get_message(event))
+                                print(f"✅ Пост {post_id} обработан: событие {event}")
+                            else:
+                                print(f"❌ Пост {post_id} не подходит под фильтр")
+
+                            sent_posts.add(post_id)
+                            new_posts_found = True
+
+                        if not new_posts_found:
+                            print("⏱ Проверка новых постов через 60 секунд... Новых постов нет подходящих.")
 
             except Exception as e:
                 print(f"❌ Ошибка VK: {e}")
 
-            print("⏱ Проверка новых постов через 60 секунд...")
             await asyncio.sleep(60)
 
 # ===== ТЕЛЕГРАМ КОМАНДЫ =====
