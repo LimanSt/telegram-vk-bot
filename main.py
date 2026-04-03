@@ -8,13 +8,11 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
 
 # ===== НАСТРОЙКИ =====
-TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
-VK_TOKEN = "vk1.a.WxSVX6N2XfB4UwcRrywyRRzHxvNv5QUQcW7haoNTjTMMV7k4jICqpKqC7k4P7r59017Expskp8sQOOwSr7ck64UvC_EYU5ocbiAzIbvlvshtMRBnDYzwaEAyHhBC8tBx392oErEpZ57ggLDsOjRQHER4yMfThmlliq5cBl1-EOUcmimedQf5FbekMqb97JfP39TpOc9TidzoogOIArUoow"
-GROUP_ID = "vrv_radar"
+TOKEN = "ТВОЙ_TELEGRAM_TOKEN"
+GROUP_URL = "https://vk.com/vrv_radar"
 ADMIN_ID = 1913014542
 
-CHECK_INTERVAL = 30
-POST_COUNT = 20
+CHECK_INTERVAL = 60  # проверка каждые 60 секунд
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -60,28 +58,21 @@ def detect_event(text):
     text = normalize(text)
 
     is_samara = "самарск" in text
-
     is_bpla = any(w in text for w in ["бпла", "беспилот", "дрон"])
     is_raketa = any(w in text for w in ["ракет", "пво"])
-
     is_otboy = any(w in text for w in ["отбой", "отмена"])
     is_opasnost = any(w in text for w in ["опасност", "угроз"])
 
     if not is_samara:
         return None
-
     if is_bpla and is_otboy:
         return "bpla_off"
-
     if is_bpla and is_opasnost:
         return "bpla_on"
-
     if is_raketa and is_otboy:
         return "raketa_off"
-
     if is_raketa and is_opasnost:
         return "raketa_on"
-
     return None
 
 # ===== СООБЩЕНИЯ =====
@@ -89,7 +80,7 @@ def get_message(event):
     messages = {
         "bpla_on": "❗ВНИМАНИЕ! В Самарской области объявлена опасность атаки БПЛА!\n\nБудьте бдительны! Тел. 112.",
         "bpla_off": "✅ В Самарской области отбой опасности БПЛА.",
-        "raketa_on": "❗ВНИМАНИЕ! В Самарской области ракетная опасность!\n\nПо возможности оставайтесь дома. Укройтесь в помещениях без окон со сплошными стенами. Не подходите к окнам. Если вы на улице или в транспорте, направляйтесь в ближайшее укрытие или безопасное место. Тел. 112.",
+        "raketa_on": "❗ВНИМАНИЕ! В Самарской области ракетная опасность!\n\nУкройтесь в безопасном месте. Тел. 112.",
         "raketa_off": "✅ В Самарской области отбой ракетной опасности.",
     }
     return messages.get(event)
@@ -110,34 +101,26 @@ async def send_to_all(text):
 
     save_json(SUBSCRIBERS_FILE, subscribers)
 
-# ===== VK ПАРСЕР =====
+# ===== ПАРСЕР ПУБЛИЧНОЙ СТРАНИЦЫ =====
 async def vk_parser():
-    url = f"https://api.vk.com/method/wall.get?domain=vrv_radar&count=2&access_token=vk1.a.WxSVX6N2XfB4UwcRrywyRRzHxvNv5QUQcW7haoNTjTMMV7k4jICqpKqC7k4P7r59017Expskp8sQOOwSr7ck64UvC_EYU5ocbiAzIbvlvshtMRBnDYzwaEAyHhBC8tBx392oErEpZ57ggLDsOjRQHER4yMfThmlliq5cBl1-EOUcmimedQf5FbekMqb97JfP39TpOc9TidzoogOIArUoow&v=5.131"
-
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                async with session.get(url) as resp:
-                    data = await resp.json()
-
-                    if "response" not in data:
-                        print("❌ VK ошибка:", data)
-                        await asyncio.sleep(10)
-                        continue
-
-                    posts = data["response"]["items"]
-
-                    for post in posts:
-                        post_id = str(post["id"])
-                        text = post.get("text", "")
+                async with session.get(GROUP_URL) as resp:
+                    html = await resp.text()
+                    # Простая регулярка для поиска постов
+                    posts = re.findall(r'<div class="wall_text">(.*?)</div>', html, re.DOTALL)
+                    for post_text in posts:
+                        post_text = re.sub(r"<.*?>", "", post_text)  # удаляем HTML теги
+                        post_id = str(hash(post_text))
 
                         if post_id in sent_posts:
                             continue
 
                         print("\n--- НОВЫЙ ПОСТ ---")
-                        print(text)
+                        print(post_text)
 
-                        event = detect_event(text)
+                        event = detect_event(post_text)
                         print("Определено событие:", event)
 
                         if event:
@@ -145,11 +128,10 @@ async def vk_parser():
                             await send_to_all(message)
 
                         sent_posts.add(post_id)
-
                     save_json(POSTS_FILE, sent_posts)
 
             except Exception as e:
-                print("❌ Ошибка VK:", e)
+                print("❌ Ошибка парсинга VK:", e)
 
             await asyncio.sleep(CHECK_INTERVAL)
 
@@ -157,10 +139,8 @@ async def vk_parser():
 @dp.message(Command("start"))
 async def start(message: Message):
     user_id = message.from_user.id
-
     subscribers.add(user_id)
     save_json(SUBSCRIBERS_FILE, subscribers)
-
     print("➕ Подписался:", user_id)
 
     if user_id == ADMIN_ID:
@@ -172,7 +152,6 @@ async def start(message: Message):
 @dp.message()
 async def handle(message: Message):
     user_id = message.from_user.id
-
     subscribers.add(user_id)
     save_json(SUBSCRIBERS_FILE, subscribers)
 
@@ -180,16 +159,12 @@ async def handle(message: Message):
         return
 
     text = None
-
     if message.text == "🚁 Объявлена опасность БПЛА":
         text = get_message("bpla_on")
-
     elif message.text == "✅ Отбой опасности БПЛА":
         text = get_message("bpla_off")
-
     elif message.text == "🚀 Объявлена ракетная опасность":
         text = get_message("raketa_on")
-
     elif message.text == "✅ Отбой ракетной опасности":
         text = get_message("raketa_off")
 
