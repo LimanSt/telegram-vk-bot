@@ -8,7 +8,7 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
 
 # ===== НАСТРОЙКИ =====
-TOKEN = "ТВОЙ_TELEGRAM_TOKEN"
+TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
 GROUP_URL = "https://vk.com/vrv_radar"
 ADMIN_ID = 1913014542
 
