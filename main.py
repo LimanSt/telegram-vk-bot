@@ -10,7 +10,7 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
 VK_TOKEN = "vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw"
 
-OWNER_ID = -227681059  # ID группы ВК с минусом
+OWNER_ID = -227681059
 ADMIN_ID = 1913014542
 
 
@@ -109,34 +109,34 @@ async def vk_parser():
                 else:
                     post = posts[0]
                     post_id = post["id"]
-            text = post.get("text", "")
+                    text = post.get("text", "")
 
-            if last_processed_post_id is None:
-                last_processed_post_id = post_id
-                print(
-                    f"🚀 Бот запущен. "
-            f"Последний пост ID={last_processed_post_id} отмечен как обработанный"
-                )
-            elif post_id != last_processed_post_id:
-                print(f"🔹 Новый пост {post_id}:\n{text}")
+                    if last_processed_post_id is None:
+                        last_processed_post_id = post_id
+                        print(
+                            f"🚀 Бот запущен. "
+                            f"Последний пост ID={last_processed_post_id} отмечен как обработанный"
+                        )
 
-                event = detect_event(text)
-                if event:
-                    print(f"✅ Обнаружен новый пост, событие: {event}")
-                    await send_to_all(EVENTS[event])
-                else:
-                    print("❌ Пост не подходит под условия")
+                    elif post_id != last_processed_post_id:
+                        print(f"🔹 Новый пост {post_id}:\n{text}")
 
-                # Обновляем ID только после обработки нового поста
-                last_processed_post_id = post_id
-            else:
-                # Явный лог, если пост уже был обработан
-                print(f"🔁 Пост {post_id} уже обработан, пропускаем")
+                        event = detect_event(text)
+                        if event:
+                            print(f"✅ Обнаружен новый пост, событие: {event}")
+                            await send_to_all(EVENTS[event])
+                        else:
+                            print("❌ Пост не подходит под условия")
+
+                        last_processed_post_id = post_id
+
+                    else:
+                        print(f"🔁 Пост {post_id} уже обработан, пропускаем")
 
             except Exception as e:
                 print(f"❌ Ошибка VK: {e}")
 
-            await asyncio.sleep(60)  # проверка каждую минуту
+            await asyncio.sleep(60)
 
 
 # ===== TELEGRAM =====
