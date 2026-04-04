@@ -98,42 +98,45 @@ async def vk_parser():
     async with aiohttp.ClientSession() as session:
         while True:
             try:
+                print("⏱ Проверка новых постов... (каждую минуту)")
+
                 async with session.get(url) as resp:
                     data = await resp.json()
                     posts = data.get("response", {}).get("items", [])
 
                 if not posts:
                     print("⏱ Новых постов нет за прошедшую минуту")
-
                 else:
                     post = posts[0]
                     post_id = post["id"]
-                    text = post.get("text", "")
+            text = post.get("text", "")
 
-                    if last_processed_post_id is None:
-                        last_processed_post_id = post_id
-                        print(
-                            f"🚀 Бот запущен. "
-                            f"Последний пост ID={last_processed_post_id} отмечен как обработанный"
-                        )
+            if last_processed_post_id is None:
+                last_processed_post_id = post_id
+                print(
+                    f"🚀 Бот запущен. "
+            f"Последний пост ID={last_processed_post_id} отмечен как обработанный"
+                )
+            elif post_id != last_processed_post_id:
+                print(f"🔹 Новый пост {post_id}:\n{text}")
 
-                    elif post_id != last_processed_post_id:
-                        print(f"🔹 Новый пост {post_id}:\n{text}")
+                event = detect_event(text)
+                if event:
+                    print(f"✅ Обнаружен новый пост, событие: {event}")
+                    await send_to_all(EVENTS[event])
+                else:
+                    print("❌ Пост не подходит под условия")
 
-                        event = detect_event(text)
-
-                        if event:
-                            print(f"✅ Обнаружен новый пост, событие: {event}")
-                            await send_to_all(EVENTS[event])
-                        else:
-                            print("❌ Пост не подходит под условия")
-
-                        last_processed_post_id = post_id
+                # Обновляем ID только после обработки нового поста
+                last_processed_post_id = post_id
+            else:
+                # Явный лог, если пост уже был обработан
+                print(f"🔁 Пост {post_id} уже обработан, пропускаем")
 
             except Exception as e:
                 print(f"❌ Ошибка VK: {e}")
 
-            await asyncio.sleep(60)
+            await asyncio.sleep(60)  # проверка каждую минуту
 
 
 # ===== TELEGRAM =====
