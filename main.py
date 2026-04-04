@@ -5,10 +5,10 @@ from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
 # ===== НАСТРОЙКИ =====
-TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"     # токен телеграм бота
-VK_TOKEN = "vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw"     # рабочий токен VK
-OWNER_ID = -227681059                # OWNER_ID группы VK (с минусом)
-ADMIN_ID = 1913014542                 # Telegram ID администратора
+TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
+VK_TOKEN = "vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw"
+OWNER_ID = -227681059  # минус обязателен для группы
+ADMIN_ID = 1913014542
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -28,9 +28,17 @@ keyboard = ReplyKeyboardMarkup(
 subscribers = set()
 sent_posts = set()
 
+# ===== СООБЩЕНИЯ =====
+MESSAGES = {
+    "bpla_on": "❗ВНИМАНИЕ! В Самарской области объявлена опасность атаки БПЛА!\n\nБудьте бдительны! Тел. 112.",
+    "bpla_off": "✅ ВНИМАНИЕ! В Самарской области отбой опасности атаки БПЛА!",
+    "raketa_on": "❗ВНИМАНИЕ! В Самарской области ракетная опасность!\n\nПо возможности оставайтесь дома. Укройтесь в помещениях без окон со сплошными стенами. Не подходите к окнам. Если вы на улице или в транспорте, направляйтесь в ближайшее укрытие или безопасное место. Тел. 112.",
+    "raketa_off": "✅ ВНИМАНИЕ! В Самарской области отбой ракетной опасности!"
+}
+
 # ===== ФУНКЦИИ =====
 def detect_event(text: str):
-    """Определяет событие по тексту поста (учитывая многострочные сообщения)"""
+    """Определяет событие по тексту поста"""
     text_normalized = text.replace("\n", " ").lower()
 
     if "самарская область" in text_normalized:
@@ -39,15 +47,6 @@ def detect_event(text: str):
         if "ракетная" in text_normalized:
             return "raketa_off" if "отбой" in text_normalized else "raketa_on"
     return None
-
-def get_message(event: str):
-    """Возвращает готовый текст сообщения для подписчиков"""
-    return {
-        "bpla_on": "❗ВНИМАНИЕ! В Самарской области объявлена опасность атаки БПЛА!\n\nБудьте бдительны! Тел. 112.",
-        "bpla_off": "✅ ВНИМАНИЕ! В Самарской области отбой опасности атаки БПЛА!",
-        "raketa_on": "❗ВНИМАНИЕ! В Самарской области ракетная опасность!\n\nПо возможности оставайтесь дома. Укройтесь в помещениях без окон со сплошными стенами. Не подходите к окнам. Если вы на улице или в транспорте, направляйтесь в ближайшее укрытие или безопасное место. Тел. 112.",
-        "raketa_off": "✅ ВНИМАНИЕ! В Самарской области отбой ракетной опасности!"
-    }.get(event)
 
 async def send_to_all(text: str):
     for user in subscribers:
@@ -59,7 +58,7 @@ async def send_to_all(text: str):
 
 # ===== VK ПАРСЕР =====
 async def vk_parser():
-    url = f"https://api.vk.com/method/wall.get?owner_id=-227681059&count=10&access_token=vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw&v=5.199"
+    url = f"https://api.vk.com/method/wall.get?owner_id=-227681059&count=1&access_token=vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw&v=5.199"
     async with aiohttp.ClientSession() as session:
         while True:
             try:
@@ -68,34 +67,29 @@ async def vk_parser():
                     posts = data.get("response", {}).get("items", [])
 
                     if not posts:
-                        print("⏱ Проверка новых постов через 60 секунд... Нет новых постов.")
+                        print("⏱ Проверка новых постов: нет постов")
                     else:
-                        new_posts_found = False
-                        for post in posts:
-                            post_id = post["id"]
-                            text = post.get("text", "")
-                            print(f"🔹 Проверка поста {post_id}:\n{text}")
+                        post = posts[0]
+                        post_id = post["id"]
+                        text = post.get("text", "")
+                        print(f"🔹 Проверка поста {post_id}:\n{text}")
 
-                            if post_id in sent_posts:
-                                continue
-
+                        if post_id in sent_posts:
+                            print("⏱ Новый пост отсутствует")
+                        else:
                             event = detect_event(text)
                             if event:
-                                await send_to_all(get_message(event))
-                                print(f"✅ Пост {post_id} обработан и опубликован: событие {event}")
+                                await send_to_all(MESSAGES[event])
+                                print(f"✅ Пост {post_id} подошёл и опубликован: {event}")
                             else:
                                 print(f"❌ Пост {post_id} не подходит под фильтр")
 
                             sent_posts.add(post_id)
-                            new_posts_found = True
-
-                        if not new_posts_found:
-                            print("⏱ Проверка новых постов через 60 секунд... Новых постов нет подходящих.")
 
             except Exception as e:
                 print(f"❌ Ошибка VK: {e}")
 
-            await asyncio.sleep(60)
+            await asyncio.sleep(60)  # проверка каждую минуту
 
 # ===== ТЕЛЕГРАМ КОМАНДЫ =====
 @dp.message(Command("start"))
@@ -111,8 +105,7 @@ async def start(message: Message):
 
 @dp.message()
 async def handle_buttons(message: Message):
-    user_id = message.from_user.id
-    if user_id != ADMIN_ID:
+    if message.from_user.id != ADMIN_ID:
         return
 
     mapping = {
@@ -123,7 +116,7 @@ async def handle_buttons(message: Message):
     }
 
     if message.text in mapping:
-        await send_to_all(get_message(mapping[message.text]))
+        await send_to_all(MESSAGES[mapping[message.text]])
 
 # ===== ЗАПУСК =====
 async def main():
