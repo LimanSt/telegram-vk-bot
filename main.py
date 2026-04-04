@@ -4,14 +4,17 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
+
 # ===== НАСТРОЙКИ =====
 TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
 VK_TOKEN = "vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw"
 OWNER_ID = -227681059  # ID группы ВК с минусом
 ADMIN_ID = 1913014542
 
+
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+
 
 # ===== КНОПКИ =====
 keyboard = ReplyKeyboardMarkup(
@@ -63,8 +66,10 @@ def detect_event(text: str):
     text_lines = text.lower().splitlines()
     joined_text = " ".join(text_lines)
 
-    # Обязательные условия для срабатывания
-    if "самарская область" in joined_text and "опасность" in joined_text:
+    # Обязательные условия для срабатывания:
+    # 1. Должен быть регион «самарская область»
+    # 2. Должна быть либо «опасность», либо «воздушная тревога»
+    if "самарская область" in joined_text and ("опасность" in joined_text or "воздушная тревога" in joined_text):
         if "бпла" in joined_text:
             return "bpla_off" if "отбой" in joined_text else "bpla_on"
         if "ракетная" in joined_text:
@@ -76,43 +81,43 @@ async def vk_parser():
     last_processed_post_id = None  # ID последнего обработанного поста
     url = f"https://api.vk.com/method/wall.get?owner_id=-227681059&count=1&access_token=vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw&v=5.199"
 
+
     async with aiohttp.ClientSession() as session:
         while True:
             try:
                 async with session.get(url) as resp:
                     data = await resp.json()
-                    posts = data.get("response", {}).get("items", [])
+            posts = data.get("response", {}).get("items", [])
 
-                    if not posts:
-                        print("⏱ Новых постов нет за прошедшую минуту")
-                    else:
-                        post = posts[0]  # берём только последний пост
-                        post_id = post["id"]
-                        text = post.get("text", "")
+            if not posts:
+                print("⏱ Новых постов нет за прошедшую минуту")
+            else:
+                post = posts[0]  # берём только последний пост
+                post_id = post["id"]
+                text = post.get("text", "")
 
-                        # Если это первый запуск, запоминаем ID последнего поста
-                        if last_processed_post_id is None:
-                            last_processed_post_id = post_id
-                            print(f"🚀 Бот запущен. Последний пост ID={last_processed_post_id} отмечен как обработанный")
-                        # Проверяем, новый ли это пост
-                        elif post_id != last_processed_post_id:
-                            print(f"🔹 Новый пост {post_id}:\n{text}")
-                            # Проверяем событие
-                            event = detect_event(text)
-                            if event:
-                                await send_to_all(EVENTS[event])
-                                print(f"✅ Пост {post_id} подошёл и опубликован: {event}")
-                            else:
-                                print("❌ Обнаружен новый пост, после проверки он не опубликован")
-                            # Обновляем ID последнего обработанного поста
-                            last_processed_post_id = post_id
-                        else:
-                            print("⏱ Новых постов нет за прошедшую минуту")
+                # Если это первый запуск, запоминаем ID последнего поста
+                if last_processed_post_id is None:
+                    last_processed_post_id = post_id
+                    print(f"🚀 Бот запущен. Последний пост ID={last_processed_post_id} отмечен как обработанный")
+                # Проверяем, новый ли это пост
+                elif post_id != last_processed_post_id:
+                    print(f"🔹 Новый пост {post_id}:\n{text}")
+            # Проверяем событие
+            event = detect_event(text)
+            if event:
+                print(f"✅ Обнаруден новый пост, пост опубликован: {event}")
+                await send_to_all(EVENTS[event])
+            else:
+                print("❌ Обнаруден новый пост, после проверки он не опубликован")
+            # Обновляем ID последнего обработанного поста
+            last_processed_post_id = post_id
 
             except Exception as e:
                 print(f"❌ Ошибка VK: {e}")
 
             await asyncio.sleep(60)  # проверка каждую минуту
+
 
 # ===== ТЕЛЕГРАМ КОМАНДЫ =====
 @dp.message(Command("start"))
