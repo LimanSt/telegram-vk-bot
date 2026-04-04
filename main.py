@@ -5,9 +5,10 @@ from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
 # ===== НАСТРОЙКИ =====
-TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"  # вставь токен своего бота
-GROUP_ID = "vrv_radar"             # публичная группа ВК
-ADMIN_ID = 1913014542               # ID администратора
+TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"     # токен телеграм бота
+VK_TOKEN = "vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw"     # рабочий токен VK
+OWNER_ID = -227681059                # OWNER_ID группы VK (с минусом)
+ADMIN_ID = 1913014542                 # Telegram ID администратора
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -27,8 +28,20 @@ keyboard = ReplyKeyboardMarkup(
 subscribers = set()
 sent_posts = set()
 
-# ===== ФИКСИРОВАННЫЕ СООБЩЕНИЯ =====
+# ===== ФУНКЦИИ =====
+def detect_event(text: str):
+    """Определяет событие по тексту поста (учитывая многострочные сообщения)"""
+    text_normalized = text.replace("\n", " ").lower()
+
+    if "самарская область" in text_normalized:
+        if "бпла" in text_normalized:
+            return "bpla_off" if "отбой" in text_normalized else "bpla_on"
+        if "ракетная" in text_normalized:
+            return "raketa_off" if "отбой" in text_normalized else "raketa_on"
+    return None
+
 def get_message(event: str):
+    """Возвращает готовый текст сообщения для подписчиков"""
     return {
         "bpla_on": "❗ВНИМАНИЕ! В Самарской области объявлена опасность атаки БПЛА!\n\nБудьте бдительны! Тел. 112.",
         "bpla_off": "✅ ВНИМАНИЕ! В Самарской области отбой опасности атаки БПЛА!",
@@ -36,7 +49,6 @@ def get_message(event: str):
         "raketa_off": "✅ ВНИМАНИЕ! В Самарской области отбой ракетной опасности!"
     }.get(event)
 
-# ===== ОТПРАВКА СООБЩЕНИЙ ВСЕМ =====
 async def send_to_all(text: str):
     for user in subscribers:
         try:
@@ -45,19 +57,9 @@ async def send_to_all(text: str):
             print(f"❌ Ошибка отправки {user}: {e}")
     print(f"💬 Сообщение отправлено всем подписчикам: {text}")
 
-# ===== ОПРЕДЕЛЕНИЕ СОБЫТИЯ =====
-def detect_event(text: str):
-    """Определяем событие по тексту поста (учитываем несколько строк)"""
-    text_norm = text.replace("\n", " ").lower()
-    if "бпла" in text_norm:
-        return "bpla_off" if "отбой" in text_norm else "bpla_on"
-    if "ракетная" in text_norm:
-        return "raketa_off" if "отбой" in text_norm else "raketa_on"
-    return None
-
 # ===== VK ПАРСЕР =====
 async def vk_parser():
-    url = f"https://api.vk.com/method/wall.get?domain=vrv_radar&count=10&v=5.131"
+    url = f"https://api.vk.com/method/wall.get?owner_id=-227681059&count=10&access_token=vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw&v=5.199"
     async with aiohttp.ClientSession() as session:
         while True:
             try:
@@ -80,7 +82,7 @@ async def vk_parser():
                             event = detect_event(text)
                             if event:
                                 await send_to_all(get_message(event))
-                                print(f"✅ Пост {post_id} опубликован: событие {event}")
+                                print(f"✅ Пост {post_id} обработан и опубликован: событие {event}")
                             else:
                                 print(f"❌ Пост {post_id} не подходит под фильтр")
 
@@ -95,7 +97,7 @@ async def vk_parser():
 
             await asyncio.sleep(60)
 
-# ===== КОМАНДА /start =====
+# ===== ТЕЛЕГРАМ КОМАНДЫ =====
 @dp.message(Command("start"))
 async def start(message: Message):
     user_id = message.from_user.id
@@ -107,7 +109,6 @@ async def start(message: Message):
     else:
         await message.answer("🔔 Ты подписан на оповещения")
 
-# ===== ОБРАБОТКА КНОПОК =====
 @dp.message()
 async def handle_buttons(message: Message):
     user_id = message.from_user.id
