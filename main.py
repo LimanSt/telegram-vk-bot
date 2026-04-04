@@ -7,7 +7,7 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 # ===== НАСТРОЙКИ =====
 TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
 VK_TOKEN = "vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw"
-OWNER_ID = -227681059  # минус обязателен для группы
+OWNER_ID = -227681059  # ID группы ВК с минусом
 ADMIN_ID = 1913014542
 
 bot = Bot(token=TOKEN)
@@ -26,28 +26,16 @@ keyboard = ReplyKeyboardMarkup(
 
 # ===== ПОДПИСЧИКИ =====
 subscribers = set()
-sent_posts = set()
 
-# ===== СООБЩЕНИЯ =====
-MESSAGES = {
+# ===== События =====
+EVENTS = {
     "bpla_on": "❗ВНИМАНИЕ! В Самарской области объявлена опасность атаки БПЛА!\n\nБудьте бдительны! Тел. 112.",
     "bpla_off": "✅ ВНИМАНИЕ! В Самарской области отбой опасности атаки БПЛА!",
     "raketa_on": "❗ВНИМАНИЕ! В Самарской области ракетная опасность!\n\nПо возможности оставайтесь дома. Укройтесь в помещениях без окон со сплошными стенами. Не подходите к окнам. Если вы на улице или в транспорте, направляйтесь в ближайшее укрытие или безопасное место. Тел. 112.",
     "raketa_off": "✅ ВНИМАНИЕ! В Самарской области отбой ракетной опасности!"
 }
 
-# ===== ФУНКЦИИ =====
-def detect_event(text: str):
-    """Определяет событие по тексту поста"""
-    text_normalized = text.replace("\n", " ").lower()
-
-    if "самарская область" in text_normalized:
-        if "бпла" in text_normalized:
-            return "bpla_off" if "отбой" in text_normalized else "bpla_on"
-        if "ракетная" in text_normalized:
-            return "raketa_off" if "отбой" in text_normalized else "raketa_on"
-    return None
-
+# ===== Отправка сообщений =====
 async def send_to_all(text: str):
     for user in subscribers:
         try:
@@ -56,53 +44,54 @@ async def send_to_all(text: str):
             print(f"❌ Ошибка отправки {user}: {e}")
     print(f"💬 Сообщение отправлено всем подписчикам: {text}")
 
+# ===== Определение события по тексту =====
+def detect_event(text: str):
+    text_lines = text.lower().splitlines()
+    joined_text = " ".join(text_lines)
+
+    if "самарская область" in joined_text:
+        if "бпла" in joined_text:
+            return "bpla_off" if "отбой" in joined_text else "bpla_on"
+        if "ракетная" in joined_text:
+            return "raketa_off" if "отбой" in joined_text else "raketa_on"
+    return None
+
 # ===== VK ПАРСЕР =====
 async def vk_parser():
-    global sent_posts
-    
-    url = f"https://api.vk.com/method/wall.get?owner_id=-227681059&count=10&access_token=vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw&v=5.199"
+    last_post_id = None
+    url = f"https://api.vk.com/method/wall.get?owner_id=-227681059&count=1&access_token=vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw&v=5.199"
+
     async with aiohttp.ClientSession() as session:
-
-        # ===== Инициализация =====
-        try:
-            async with session.get(url) as resp:
-                data = await resp.json()
-                posts = data.get("response", {}).get("items", [])
-                if posts:
-                    # Берём последний пост как отправную точку
-                    last_id = posts[0]["id"]
-                    sent_posts.add(last_id)
-                    print(f"🚀 Бот запущен. Последний пост ID={last_id} отмечен как обработанный")
-        except Exception as e:
-            print(f"❌ Ошибка инициализации VK: {e}")
-
-        # ===== Цикл проверки новых постов =====
         while True:
             try:
                 async with session.get(url) as resp:
                     data = await resp.json()
                     posts = data.get("response", {}).get("items", [])
 
-                    new_found = False
-                    for post in reversed(posts):  # проверяем от старого к новому
+                    if not posts:
+                        print("⏱ Новых постов нет")
+                    else:
+                        post = posts[0]  # берём только последний пост
                         post_id = post["id"]
                         text = post.get("text", "")
-                        if post_id in sent_posts:
-                            continue
 
                         print(f"🔹 Новый пост {post_id}:\n{text}")
-                        event = detect_event(text)
-                        if event:
-                            await send_to_all(MESSAGES[event])
-                            print(f"✅ Пост {post_id} подошёл и опубликован: {event}")
+
+                        if last_post_id is None:
+                            # при первом запуске просто помечаем пост как обработанный
+                            last_post_id = post_id
+                            print(f"🚀 Бот запущен. Последний пост ID={last_post_id} отмечен как обработанный")
+                        elif post_id > last_post_id:
+                            # проверяем событие
+                            event = detect_event(text)
+                            if event:
+                                await send_to_all(EVENTS[event])
+                                print(f"✅ Пост {post_id} подошёл и опубликован: {event}")
+                            else:
+                                print(f"❌ Пост {post_id} не подходит под фильтр")
+                            last_post_id = post_id
                         else:
-                            print(f"❌ Пост {post_id} не подходит под фильтр")
-
-                        sent_posts.add(post_id)
-                        new_found = True
-
-                    if not new_found:
-                        print("⏱ Нет новых постов за эту минуту")
+                            print("⏱ Новых постов нет")
 
             except Exception as e:
                 print(f"❌ Ошибка VK: {e}")
@@ -123,7 +112,8 @@ async def start(message: Message):
 
 @dp.message()
 async def handle_buttons(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    user_id = message.from_user.id
+    if user_id != ADMIN_ID:
         return
 
     mapping = {
@@ -134,7 +124,7 @@ async def handle_buttons(message: Message):
     }
 
     if message.text in mapping:
-        await send_to_all(MESSAGES[mapping[message.text]])
+        await send_to_all(EVENTS[mapping[message.text]])
 
 # ===== ЗАПУСК =====
 async def main():
