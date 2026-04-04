@@ -58,33 +58,52 @@ async def send_to_all(text: str):
 
 # ===== VK ПАРСЕР =====
 async def vk_parser():
-    url = f"https://api.vk.com/method/wall.get?owner_id=-227681059&count=1&access_token=vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw&v=5.199"
+    global sent_posts
+
+    url = f"https://api.vk.com/method/wall.get?owner_id=-227681059&count=10&access_token=vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw
+&v=5.199"
     async with aiohttp.ClientSession() as session:
+
+        # ===== Инициализация =====
+        try:
+            async with session.get(url) as resp:
+                data = await resp.json()
+                posts = data.get("response", {}).get("items", [])
+                if posts:
+                    # Берём последний пост как отправную точку
+                    last_id = posts[0]["id"]
+                    sent_posts.add(last_id)
+                    print(f"🚀 Бот запущен. Последний пост ID={last_id} отмечен как обработанный")
+        except Exception as e:
+            print(f"❌ Ошибка инициализации VK: {e}")
+
+        # ===== Цикл проверки новых постов =====
         while True:
             try:
                 async with session.get(url) as resp:
                     data = await resp.json()
                     posts = data.get("response", {}).get("items", [])
 
-                    if not posts:
-                        print("⏱ Проверка новых постов: нет постов")
-                    else:
-                        post = posts[0]
+                    new_found = False
+                    for post in reversed(posts):  # проверяем от старого к новому
                         post_id = post["id"]
                         text = post.get("text", "")
-                        print(f"🔹 Проверка поста {post_id}:\n{text}")
-
                         if post_id in sent_posts:
-                            print("⏱ Новый пост отсутствует")
-                        else:
-                            event = detect_event(text)
-                            if event:
-                                await send_to_all(MESSAGES[event])
-                                print(f"✅ Пост {post_id} подошёл и опубликован: {event}")
-                            else:
-                                print(f"❌ Пост {post_id} не подходит под фильтр")
+                            continue
 
-                            sent_posts.add(post_id)
+                        print(f"🔹 Новый пост {post_id}:\n{text}")
+                        event = detect_event(text)
+                        if event:
+                            await send_to_all(MESSAGES[event])
+                            print(f"✅ Пост {post_id} подошёл и опубликован: {event}")
+                        else:
+                            print(f"❌ Пост {post_id} не подходит под фильтр")
+
+                        sent_posts.add(post_id)
+                        new_found = True
+
+                    if not new_found:
+                        print("⏱ Нет новых постов за эту минуту")
 
             except Exception as e:
                 print(f"❌ Ошибка VK: {e}")
