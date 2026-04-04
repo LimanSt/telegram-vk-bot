@@ -37,19 +37,34 @@ EVENTS = {
 
 # ===== Отправка сообщений =====
 async def send_to_all(text: str):
+    if not subscribers:  # Проверка на отсутствие подписчиков
+        print("👥 Нет подписчиков для отправки")
+        return
+
+    success_count = 0
+    error_count = 0
+
     for user in subscribers:
         try:
             await bot.send_message(user, text)
+            success_count += 1
         except Exception as e:
             print(f"❌ Ошибка отправки {user}: {e}")
-    print(f"💬 Сообщение отправлено всем подписчикам: {text}")
+            error_count += 1
+
+    print(f"💬 Сообщение отправлено: {success_count} успешно, {error_count} ошибок")
 
 # ===== Определение события по тексту =====
 def detect_event(text: str):
+    # Проверка на пустой текст
+    if not text or not text.strip():
+        return None
+
     text_lines = text.lower().splitlines()
     joined_text = " ".join(text_lines)
 
-    if "самарская область" in joined_text:
+    # Обязательные условия для срабатывания
+    if "самарская область" in joined_text and "опасность" in joined_text:
         if "бпла" in joined_text:
             return "bpla_off" if "отбой" in joined_text else "bpla_on"
         if "ракетная" in joined_text:
@@ -58,7 +73,7 @@ def detect_event(text: str):
 
 # ===== VK ПАРСЕР =====
 async def vk_parser():
-    last_post_id = None
+    last_processed_post_id = None  # ID последнего обработанного поста
     url = f"https://api.vk.com/method/wall.get?owner_id=-227681059&count=1&access_token=vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw&v=5.199"
 
     async with aiohttp.ClientSession() as session:
@@ -69,29 +84,30 @@ async def vk_parser():
                     posts = data.get("response", {}).get("items", [])
 
                     if not posts:
-                        print("⏱ Новых постов нет")
+                        print("⏱ Новых постов нет за прошедшую минуту")
                     else:
                         post = posts[0]  # берём только последний пост
                         post_id = post["id"]
                         text = post.get("text", "")
 
-                        print(f"🔹 Новый пост {post_id}:\n{text}")
-
-                        if last_post_id is None:
-                            # при первом запуске просто помечаем пост как обработанный
-                            last_post_id = post_id
-                            print(f"🚀 Бот запущен. Последний пост ID={last_post_id} отмечен как обработанный")
-                        elif post_id > last_post_id:
-                            # проверяем событие
+                        # Если это первый запуск, запоминаем ID последнего поста
+                        if last_processed_post_id is None:
+                            last_processed_post_id = post_id
+                            print(f"🚀 Бот запущен. Последний пост ID={last_processed_post_id} отмечен как обработанный")
+                        # Проверяем, новый ли это пост
+                        elif post_id != last_processed_post_id:
+                            print(f"🔹 Новый пост {post_id}:\n{text}")
+                            # Проверяем событие
                             event = detect_event(text)
                             if event:
                                 await send_to_all(EVENTS[event])
                                 print(f"✅ Пост {post_id} подошёл и опубликован: {event}")
                             else:
-                                print(f"❌ Пост {post_id} не подходит под фильтр")
-                            last_post_id = post_id
+                                print("❌ Обнаружен новый пост, после проверки он не опубликован")
+                            # Обновляем ID последнего обработанного поста
+                            last_processed_post_id = post_id
                         else:
-                            print("⏱ Новых постов нет")
+                            print("⏱ Новых постов нет за прошедшую минуту")
 
             except Exception as e:
                 print(f"❌ Ошибка VK: {e}")
