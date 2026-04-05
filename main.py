@@ -146,6 +146,7 @@ async def start(message: Message):
     subscribers.add(user_id)
 
     print(f"🔔 Подписался пользователь: {user_id}")
+    print(f"👥 Подписчиков сейчас: {len(subscribers)}")
 
     if user_id == ADMIN_ID:
         await message.answer("✅ Ты админ", reply_markup=keyboard)
