@@ -8,7 +8,7 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
 # ===== НАСТРОЙКИ =====
 TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
-VK_TOKEN = "vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw"
+VK_TOKEN = "vk1.a.ePZMPduAhQLVOxmXuSfQN2wo6ceHJp6D7ssZvBGt1YnBxlIT08kt5j1pyeMFSQmf15KjNjaij7w7AP8d5TFaia7gSYsvCQmAqS3THnwm5GDyDLt8CtpmuQHUCOhgi9VqCWxiu8IUK-CUdp-wam7B-JEx7gQ_6kmH9Zy1P13hbME8Cn2eTxeXyxIFHYZGHGlqJYqa9QkqL_07G5UdW6OUFQ"
 
 OWNER_ID = -227681059
 ADMIN_ID = 1913014542
@@ -91,7 +91,7 @@ async def vk_parser():
         f"https://api.vk.com/method/wall.get"
         f"?owner_id=-227681059"
         f"&count=1"
-        f"&access_token=vk1.a.BGk6rqrdXdY52bfBqlanSkVvsz0rd8s7i9qomGimslc0hveX1lhlw6u32Pp80qSo-Hdh0g_IcZoPMJh-klTjmOqC5AFAdXWB_5UzW416wEU4jSntIFx-S6HsSaXg6sQ_6pB78BrC6HXHs0Vlda7mdnFDUSZSAL_yzvDx8ZDOhMOZ8ELuJa9BFyO7fpeRGC_baZArFky-iC7VZx9PrnJpqw"
+        f"&access_token=vk1.a.ePZMPduAhQLVOxmXuSfQN2wo6ceHJp6D7ssZvBGt1YnBxlIT08kt5j1pyeMFSQmf15KjNjaij7w7AP8d5TFaia7gSYsvCQmAqS3THnwm5GDyDLt8CtpmuQHUCOhgi9VqCWxiu8IUK-CUdp-wam7B-JEx7gQ_6kmH9Zy1P13hbME8Cn2eTxeXyxIFHYZGHGlqJYqa9QkqL_07G5UdW6OUFQ"
         f"&v=5.199"
     )
 
