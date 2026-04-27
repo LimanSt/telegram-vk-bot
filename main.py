@@ -1,22 +1,36 @@
 import asyncio
 import aiohttp
+import json
+import time
 
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
-
 # ===== НАСТРОЙКИ =====
-TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
-VK_TOKEN = "vk1.a.ePZMPduAhQLVOxmXuSfQN2wo6ceHJp6D7ssZvBGt1YnBxlIT08kt5j1pyeMFSQmf15KjNjaij7w7AP8d5TFaia7gSYsvCQmAqS3THnwm5GDyDLt8CtpmuQHUCOhgi9VqCWxiu8IUK-CUdp-wam7B-JEx7gQ_6kmH9Zy1P13hbME8Cn2eTxeXyxIFHYZGHGlqJYqa9QkqL_07G5UdW6OUFQ"
+TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2X"
+VK_TOKEN = "vk1.a.U_TIquBJERKH-gou93B93pn-ceKqu3h7DVcayhWImUOf8mFJfjG9_9hvN8-H77A4erRaD5X9hi0welhfzG7ZLQo9tnMxUFzfzQehI-VvKIBJaIM2-fPkfmpHEEnOPql_gjC7c04bqdV3UC4KCPIRmpNDZTVrPx7OfcOaTByAkzJTSCCYTM7Z7Yk7-MTDo4hiKyELKHfjZRoi1xq9KuNWUQ"
 
 OWNER_ID = -227681059
 ADMIN_ID = 1913014542
 
-
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+# ===== ЗАГРУЗКА ПОДПИСЧИКОВ =====
+try:
+    with open("subscribers.json", "r") as f:
+        subscribers = set(json.load(f))
+except:
+    subscribers = set()
+
+# ===== СОХРАНЕНИЕ =====
+def save_subscribers():
+    with open("subscribers.json", "w") as f:
+        json.dump(list(subscribers), f)
+
+# ===== СОСТОЯНИЯ =====
+waiting_for_broadcast = set()
 
 # ===== КНОПКИ =====
 keyboard = ReplyKeyboardMarkup(
@@ -25,140 +39,123 @@ keyboard = ReplyKeyboardMarkup(
         [KeyboardButton(text="✅ Отбой опасности БПЛА")],
         [KeyboardButton(text="🚀 Объявлена ракетная опасность")],
         [KeyboardButton(text="✅ Отбой ракетной опасности")],
+        [KeyboardButton(text="✍️ Отправить своё сообщение")],
+        [KeyboardButton(text="📊 Кол-во подписчиков")],
     ],
     resize_keyboard=True
 )
 
-
-# ===== ПОДПИСЧИКИ =====
-subscribers = set()
-
-
 # ===== СОБЫТИЯ =====
 EVENTS = {
-    "bpla_on": "❗ВНИМАНИЕ! В Самарской области объявлена опасность атаки БПЛА!\n\nБудьте бдительны! Тел. 112.",
-    "bpla_off": "✅ ВНИМАНИЕ! В Самарской области отбой опасности атаки БПЛА!",
-    "raketa_on": "❗ВНИМАНИЕ! В Самарской области ракетная опасность!\n\nПо возможности оставайтесь дома. Укройтесь в помещениях без окон со сплошными стенами. Не подходите к окнам. Если вы на улице или в транспорте, направляйтесь в ближайшее укрытие или безопасное место. Тел. 112.",
-    "raketa_off": "✅ ВНИМАНИЕ! В Самарской области отбой ракетной опасности!"
+    "bpla_on": "❗ Граждане, ВНИМАНИЕ! Объявлена опасность БПЛА на территории Самарской области!/n/n❗ Будьте бдительны! Публикация фото и видео с БПЛА, а также последствия их применений ЗАПРЕЩЕНА! Не помогайте врагу./n❗ 112 — ЕДИНЫЙ НОМЕР ВЫЗОВА ЭКСТРЕННЫХ СЛУЖБ.",
+    "bpla_off": "✅ Граждане, ВНИМАНИЕ! Снята опасность БПЛА на территории Самарской области!",
+    "raketa_on": "‼️ Граждане, ВНИМАНИЕ! Объявлена РАКЕТНАЯ опасность на территории Самарской области!/n/n‼️ ЕСЛИ ВЫ НА УЛИЦЕ ИЛИ В ТРАНСПОРТЕ:/n•   сохраняйте спокойствие/n•   покиньте транспортное средство/n•   определите возле себя надёжное укрытие (подъезд дома, подземный переход или паркинг, метро)/n•   не оставайтесь на открытой местности/n•   при отсутствия надёжного укрытия выберите любое углубление, выступ или бетонные конструкции/n‼️ ЕСЛИ ВЫ В ЗДАНИИ:ЕСЛИ ВБЛИЗИ НЕТ ЗАЩИТНОГО СООРУЖЕНИЯ ГРАЖДАНСКОЙ ОБОРОНЫ, ПОДВАЛА ИЛИ ПАРКИНГА:/n•   держитесь подальше от окон•   зайдите в помещение с несущими стенами или помещение без окон (в квартире, как правило, ванная комната)•   сядьте на пол возле несущей стены и пригнитесь./nНЕ ПОЛЬЗУЙТЕСЬ ЛИФТОМ ВО ВРЕМЯ РАКЕТНОЙ ОПАСНОСТИ, ТАКЖЕ ЛИФТ НЕ ПОДХОДИТ ДЛЯ УКРЫТИЯ./n‼️ ПОСЛЕ ОКОНЧАНИЯ АТАКИ:/n•   не торопитесь выходить из защищённого места/n•   внимательно смотрите под ноги/n•   не поднимайте с земли незнакомые предметы, неразорвавшиеся боеприпасы и не прикасайтесь к ним./n‼️ 112 — ЕДИНЫЙ НОМЕР ВЫЗОВАЭКСТРЕННЫХ СЛУЖБ.",
+    "raketa_off": "✅ Граждане, ВНИМАНИЕ! Снята РАКЕТНАЯ опасность на территории Самарской области!"
 }
 
-
 # ===== ОТПРАВКА =====
-async def send_to_all(text: str):
-    if not subscribers:
-        print("👥 Нет подписчиков для отправки")
-        return
-
-    success_count = 0
-    error_count = 0
-
+async def send_to_all(text):
     for user in subscribers:
         try:
             await bot.send_message(user, text)
-            success_count += 1
         except Exception as e:
-            print(f"❌ Ошибка отправки {user}: {e}")
-            error_count += 1
+            print("Ошибка:", e)
 
-    print(f"💬 Сообщение отправлено: {success_count} успешно, {error_count} ошибок")
+# ===== ДЕТЕКТ =====
+def detect_event(text):
+    t = text.lower()
 
-
-# ===== ДЕТЕКТ СОБЫТИЯ =====
-def detect_event(text: str):
-    if not text or not text.strip():
-        return None
-
-    text_lines = text.lower().splitlines()
-    joined_text = " ".join(text_lines)
-
-    if "самарская область" in joined_text and (
-        "опасность" in joined_text or "воздушная тревога" in joined_text
-    ):
-        if "бпла" in joined_text:
-            return "bpla_off" if "отбой" in joined_text else "bpla_on"
-
-        if "ракетная" in joined_text:
-            return "raketa_off" if "отбой" in joined_text else "raketa_on"
+    if "самар" in t:
+        if "бпла" in t:
+            return "bpla_off" if "отбой" in t else "bpla_on"
+        if "ракет" in t:
+            return "raketa_off" if "отбой" in t else "raketa_on"
 
     return None
 
-
 # ===== VK ПАРСЕР =====
-async def vk_parser():
-    last_processed_post_id = None
+last_post_id = 0
 
-    url = (
-        f"https://api.vk.com/method/wall.get"
-        f"?owner_id=-227681059"
-        f"&count=1"
-        f"&access_token=vk1.a.ePZMPduAhQLVOxmXuSfQN2wo6ceHJp6D7ssZvBGt1YnBxlIT08kt5j1pyeMFSQmf15KjNjaij7w7AP8d5TFaia7gSYsvCQmAqS3THnwm5GDyDLt8CtpmuQHUCOhgi9VqCWxiu8IUK-CUdp-wam7B-JEx7gQ_6kmH9Zy1P13hbME8Cn2eTxeXyxIFHYZGHGlqJYqa9QkqL_07G5UdW6OUFQ"
-        f"&v=5.199"
-    )
+async def vk_parser():
+    global last_post_id
+
+    url = f"https://api.vk.com/method/wall.get?owner_id=-227681059&count=5&access_token=vk1.a.U_TIquBJERKH-gou93B93pn-ceKqu3h7DVcayhWImUOf8mFJfjG9_9hvN8-H77A4erRaD5X9hi0welhfzG7ZLQo9tnMxUFzfzQehI-VvKIBJaIM2-fPkfmpHEEnOPql_gjC7c04bqdV3UC4KCPIRmpNDZTVrPx7OfcOaTByAkzJTSCCYTM7Z7Yk7-MTDo4hiKyELKHfjZRoi1xq9KuNWUQ&v=5.199"
 
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                print("⏱ Проверка новых постов... (каждую минуту)")
-
-                async with session.get(url) as resp:
+                async with session.get(url + f"&t={int(time.time())}") as resp:
                     data = await resp.json()
-                    posts = data.get("response", {}).get("items", [])
 
-                if not posts:
-                    print("⏱ Новых постов нет за прошедшую минуту")
-                else:
-                    post = posts[0]
+                if "response" not in data:
+                    print("VK ошибка:", data)
+                    await asyncio.sleep(5)
+                    continue
+
+                posts = data["response"]["items"]
+
+                if last_post_id == 0 and posts:
+                    last_post_id = posts[0]["id"]
+                    print("Инициализация:", last_post_id)
+                    continue
+
+                for post in reversed(posts):
                     post_id = post["id"]
+
+                    if post_id <= last_post_id:
+                        continue
+
                     text = post.get("text", "")
+                    print("НОВЫЙ ПОСТ:", text)
 
-                    if last_processed_post_id is None:
-                        last_processed_post_id = post_id
-                        print(
-                            f"🚀 Бот запущен. "
-                            f"Последний пост ID={last_processed_post_id} отмечен как обработанный"
-                        )
+                    event = detect_event(text)
+                    if event:
+                        await send_to_all(EVENTS[event])
 
-                    elif post_id != last_processed_post_id:
-                        print(f"🔹 Новый пост {post_id}:\n{text}")
-
-                        event = detect_event(text)
-                        if event:
-                            print(f"✅ Обнаружен новый пост, событие: {event}")
-                            await send_to_all(EVENTS[event])
-                        else:
-                            print("❌ Пост не подходит под условия")
-
-                        last_processed_post_id = post_id
-
-                    else:
-                        print(f"🔁 Пост {post_id} уже обработан, пропускаем")
+                    last_post_id = post_id
 
             except Exception as e:
-                print(f"❌ Ошибка VK: {e}")
+                print("Ошибка VK:", e)
 
-            await asyncio.sleep(60)
-
+            await asyncio.sleep(30)
 
 # ===== TELEGRAM =====
 @dp.message(Command("start"))
 async def start(message: Message):
     user_id = message.from_user.id
     subscribers.add(user_id)
-
-    print(f"🔔 Подписался пользователь: {user_id}")
-    print(f"👥 Подписчиков сейчас: {len(subscribers)}")
+    save_subscribers()
 
     if user_id == ADMIN_ID:
         await message.answer("✅ Ты админ", reply_markup=keyboard)
     else:
-        await message.answer("🔔 Ты подписан на оповещения")
-
+        await message.answer("🔔 Ты подписан и будешь получать экстренные оповещения!\nВАЖНО!\nДанный бот не является ботом МЧС России. Бот создан для оперативного оповещения граждан Самарской области.\n\nУсловные обозначения, если увидите уведомление и чтобы не чиать все сразу:\n❗— Опасность БПЛА\n‼️— Ракетная опасность\n✅ — Отбой ракетной опасности или опасности БПЛА\n📄 — Прочие оповещения")
 
 @dp.message()
-async def handle_buttons(message: Message):
+async def handle(message: Message):
     user_id = message.from_user.id
+    subscribers.add(user_id)
+    save_subscribers()
 
+    # только админ
     if user_id != ADMIN_ID:
+        return
+
+    # ===== ВВОД СООБЩЕНИЯ =====
+    if user_id in waiting_for_broadcast:
+        await send_to_all(f"📢 {message.text}")
+        waiting_for_broadcast.remove(user_id)
+        await message.answer("✅ Отправлено")
+        return
+
+    # ===== КНОПКИ =====
+    if message.text == "✍️ Отправить своё сообщение":
+        waiting_for_broadcast.add(user_id)
+        await message.answer("Напиши текст:")
+        return
+
+    if message.text == "📊 Кол-во подписчиков":
+        await message.answer(f"👥 Подписчиков: {len(subscribers)}")
         return
 
     mapping = {
@@ -171,14 +168,11 @@ async def handle_buttons(message: Message):
     if message.text in mapping:
         await send_to_all(EVENTS[mapping[message.text]])
 
-
 # ===== ЗАПУСК =====
 async def main():
     print("🚀 БОТ ЗАПУЩЕН")
-
     asyncio.create_task(vk_parser())
     await dp.start_polling(bot)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
