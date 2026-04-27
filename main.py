@@ -92,7 +92,7 @@ async def vk_parser():
 
                 params = {
                     "owner_id": OWNER_ID,
-                    "count": 5,
+                    "count": 1,
                     "access_token": VK_TOKEN,
                     "v": "5.199"
                 }
