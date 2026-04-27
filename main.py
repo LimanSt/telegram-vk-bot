@@ -31,12 +31,12 @@ last_post_id = 0
 
 keyboard = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="🚁 Объявлена опасность БПЛА")],
+        [KeyboardButton(text="📊 Подписчики")],
+        [KeyboardButton(text="✍️ Сообщение")],
+        [KeyboardButton(text="🚁 БПЛА тревога")],
+        [KeyboardButton(text="🚀 Ракетная тревога")],
         [KeyboardButton(text="✅ Отбой опасности БПЛА")],
-        [KeyboardButton(text="🚀 Объявлена ракетная опасность")],
         [KeyboardButton(text="✅ Отбой ракетной опасности")],
-        [KeyboardButton(text="✍️ Отправить своё сообщение")],
-        [KeyboardButton(text="📊 Кол-во подписчиков")],
     ],
     resize_keyboard=True
 )
@@ -146,35 +146,39 @@ async def handler(message: Message):
 
     subscribers.add(user_id)
 
-    if user_id != ADMIN_ID:
-        return
+    # ❗ СНАЧАЛА админ команды
+    if user_id == ADMIN_ID:
 
-    if text == "📊 Подписчики":
-        await message.answer(f"{len(subscribers)}")
-        return
+        if text == "📊 Подписчики":
+            await message.answer(str(len(subscribers)))
+            return
 
-    if text == "✍️ Сообщение":
-        waiting_for_broadcast.add(user_id)
-        await message.answer("Введи текст")
-        return
+        if text == "✍️ Сообщение":
+            waiting_for_broadcast.add(user_id)
+            await message.answer("Введи текст:")
+            return
 
-    if user_id in waiting_for_broadcast:
-        await send_to_all("📢 " + text)
-        waiting_for_broadcast.remove(user_id)
-        return
+        if user_id in waiting_for_broadcast:
+            await send_to_all("📢 " + text)
+            waiting_for_broadcast.remove(user_id)
+            await message.answer("Отправлено")
+            return
 
-    if text == "🚁 БПЛА тревога":
-        await send_to_all(EVENTS["bpla_on"])
+        if text == "🚁 БПЛА тревога":
+            await send_to_all(EVENTS["bpla_on"])
+            return
 
-    if text == "🚀 Ракетная тревога":
-        await send_to_all(EVENTS["raketa_on"])
+        if text == "🚀 Ракетная тревога":
+            await send_to_all(EVENTS["raketa_on"])
+            return
 
-    if text == "✅ Отбой опасности БПЛА":
-        await send_to_all(EVENTS["bpla_off"])
+        if text == "✅ Отбой опасности БПЛА":
+            await send_to_all(EVENTS["bpla_off"])
+            return
 
-    if text == "✅ Отбой ракетной опасности":
-        await send_to_all(EVENTS["raketa_off"])
-
+        if text == "✅ Отбой ракетной опасности":
+            await send_to_all(EVENTS["raketa_off"])
+            return
 
 # ================== ЗАПУСК ==================
 
