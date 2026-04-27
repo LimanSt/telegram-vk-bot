@@ -1,5 +1,7 @@
 import asyncio
 import aiohttp
+import json
+import os
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -31,7 +33,33 @@ keyboard = ReplyKeyboardMarkup(
 
 
 # ===== ПОДПИСЧИКИ =====
-subscribers = set()
+SUBSCRIBERS_FILE = "/data/subscribers.json"
+
+
+def load_subscribers() -> set:
+    if os.path.exists(SUBSCRIBERS_FILE):
+        try:
+            with open(SUBSCRIBERS_FILE, "r") as f:
+                data = json.load(f)
+            loaded = set(data)
+            print(f"📂 Загружено подписчиков из файла: {len(loaded)}")
+            return loaded
+        except Exception as e:
+            print(f"❌ Ошибка загрузки подписчиков: {e}")
+    return set()
+
+
+def save_subscribers(subs: set) -> None:
+    try:
+        os.makedirs(os.path.dirname(SUBSCRIBERS_FILE), exist_ok=True)
+        with open(SUBSCRIBERS_FILE, "w") as f:
+            json.dump(list(subs), f)
+        print(f"💾 Подписчики сохранены: {len(subs)}")
+    except Exception as e:
+        print(f"❌ Ошибка сохранения подписчиков: {e}")
+
+
+subscribers = load_subscribers()
 
 
 # ===== СОБЫТИЯ =====
@@ -144,6 +172,7 @@ async def vk_parser():
 async def start(message: Message):
     user_id = message.from_user.id
     subscribers.add(user_id)
+    save_subscribers(subscribers)
 
     print(f"🔔 Подписался пользователь: {user_id}")
     print(f"👥 Подписчиков сейчас: {len(subscribers)}")
