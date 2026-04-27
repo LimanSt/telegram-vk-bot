@@ -9,7 +9,7 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
 # ================== НАСТРОЙКИ ==================
 
-TOKEN = 8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4
+TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
 
 # ⚠️ VK токен вставляешь сюда вручную
 VK_TOKEN = "c1c1fdb9c1c1fdb9c1c1fdb95dc2fe0705cc1c1c1c1fdb9a811af7728d3b4bad84ceef3"
