@@ -2,11 +2,14 @@ import asyncio
 import aiohttp
 import json
 import time
+import re
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
+# ===== ГЛОБАЛЬНЫЕ ДАННЫЕ =====
+sent_posts = set()
 # ================== НАСТРОЙКИ ==================
 
 TOKEN = "8728196428:AAFpFpgLoTPie4wKihFwBfcl0DYnR2eCMB4"
@@ -75,7 +78,7 @@ async def send_to_all(text):
 # ================== VK ПАРСЕР ==================
 
 async def vk_parser():
-    global last_post_id, VK_TOKEN
+    global VK_TOKEN
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -104,28 +107,67 @@ async def vk_parser():
 
                 posts = data["response"]["items"]
 
-                if last_post_id == 0 and posts:
-                    last_post_id = posts[0]["id"]
-                    continue
-
                 for post in reversed(posts):
-                    if post["id"] <= last_post_id:
+                    post_id = post["id"]
+
+                    if post_id in sent_posts:
                         continue
 
-                    text = post.get("text", "")
-                    print("НОВЫЙ ПОСТ:", text)
+                    text = post.get("text", "").lower()
+                    print("ПОСТ:", text)
 
-                    event = detect_event(text)
-                    if event:
-                        await send_to_all(EVENTS[event])
+                    # ================= ФИЛЬТР =================
 
-                    last_post_id = post["id"]
+                    if "самар" not in text:
+                        continue
+
+                    if any(x in text for x in [
+                        "наблюден", "фиксац", "возможн", "предполож"
+                    ]):
+                        continue
+
+                    # ================= ТИП =================
+
+                    is_bpla = any(x in text for x in ["бпла", "дрон", "беспилот"])
+                    is_rocket = "ракет" in text
+
+                    # ================= СТАТУС =================
+
+                    is_cancel = any(x in text for x in ["отбой", "снят", "отмен"])
+                    is_alert = any(x in text for x in ["объявлен", "введен", "опасност", "тревог", "угроз"])
+
+                    # ================= ЛОГИКА =================
+
+                    if is_bpla:
+
+                        if is_cancel:
+                            await send_to_all("✅ В Самарской области ОТБОЙ опасности БПЛА.")
+                        elif is_alert:
+                            await send_to_all(
+                                "❗ ВНИМАНИЕ! В Самарской области ОБЪЯВЛЕНА опасность БПЛА!\n\nТел. 112."
+                            )
+
+                        sent_posts.add(post_id)
+                        continue
+
+                    if is_rocket:
+
+                        if is_cancel:
+                            await send_to_all("✅ В Самарской области ОТБОЙ ракетной опасности.")
+                        elif is_alert:
+                            await send_to_all(
+                                "‼️ ВНИМАНИЕ! РАКЕТНАЯ ОПАСНОСТЬ в Самарской области!\n\n"
+                                "Немедленно укройтесь. Тел. 112."
+                            )
+
+                        sent_posts.add(post_id)
+                        continue
+
+                await asyncio.sleep(30)
 
             except Exception as e:
                 print("VK ERROR:", e)
-
-            await asyncio.sleep(30)
-
+                await asyncio.sleep(30)
 
 # ================== TELEGRAM ==================
 
