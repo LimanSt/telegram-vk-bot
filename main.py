@@ -1,6 +1,7 @@
 import asyncio
 import aiohttp
 import json
+import os
 import time
 
 from aiogram import Bot, Dispatcher
@@ -18,15 +19,17 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # ===== ЗАГРУЗКА ПОДПИСЧИКОВ =====
+os.makedirs("/data", exist_ok=True)
+
 try:
-    with open("subscribers.json", "r") as f:
+    with open("/data/subscribers.json", "r") as f:
         subscribers = set(json.load(f))
 except:
     subscribers = set()
 
 # ===== СОХРАНЕНИЕ =====
 def save_subscribers():
-    with open("subscribers.json", "w") as f:
+    with open("/data/subscribers.json", "w") as f:
         json.dump(list(subscribers), f)
 
 # ===== СОСТОЯНИЯ =====
