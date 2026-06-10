@@ -212,8 +212,8 @@ async def handler(message: Message):
     text = message.text
 
     if user_id not in subscribers:
-    subscribers.add(user_id)
-    save_subscribers()
+        subscribers.add(user_id)
+        save_subscribers()
 
     # ❗ СНАЧАЛА админ команды
     if user_id == ADMIN_ID:
