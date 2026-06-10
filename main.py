@@ -197,8 +197,8 @@ async def vk_parser():
 @dp.message(Command("start"))
 async def start(message: Message):
     if message.from_user.id not in subscribers:
-    subscribers.add(message.from_user.id)
-    save_subscribers()
+        subscribers.add(message.from_user.id)
+        save_subscribers()
 
     if message.from_user.id == ADMIN_ID:
         await message.answer("🔔 Ты подписан и будешь получать экстренные оповещения!\n\n👑Админ-панель!\n\nВАЖНО!\nДанный бот не является ботом МЧС России. Бот создан для оперативного оповещения граждан Самарской области.\n\nУсловные обозначения, если увидите уведомление и чтобы не читать все сразу:\n❗— Опасность БПЛА\n‼️— Ракетная опасность\n✅ — Отбой ракетной опасности или опасности БПЛА\n📢 — Прочие оповещения", reply_markup=keyboard)
