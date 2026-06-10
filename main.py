@@ -1,8 +1,9 @@
-import asyncio
+import asyncio 
 import aiohttp
 import json
 import time
 import re
+import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
@@ -19,13 +20,28 @@ VK_TOKEN = "c1c1fdb9c1c1fdb9c1c1fdb95dc2fe0705cc1c1c1c1fdb9a811af7728d3b4bad84ce
 
 OWNER_ID = -227681059
 ADMIN_ID = 1913014542
+DB_FILE = "subscribers.json"
+
+def load_subscribers():
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                return set(json.load(f))
+        except:
+            return set()
+    return set()
+
+
+def save_subscribers():
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(list(subscribers), f)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # ================== ДАННЫЕ ==================
 
-subscribers = set()
+subscribers = load_subscribers()
 waiting_for_broadcast = set()
 
 last_post_id = 0
@@ -68,12 +84,20 @@ def detect_event(text):
 
 
 async def send_to_all(text):
+    removed = False
+
     for user in list(subscribers):
         try:
             await bot.send_message(user, text)
-        except:
-            pass
 
+        except Exception as e:
+            print(f"Ошибка отправки {user}: {e}")
+
+            subscribers.discard(user)
+            removed = True
+
+    if removed:
+        save_subscribers()
 
 # ================== VK ПАРСЕР ==================
 
@@ -172,7 +196,9 @@ async def vk_parser():
 
 @dp.message(Command("start"))
 async def start(message: Message):
+    if message.from_user.id not in subscribers:
     subscribers.add(message.from_user.id)
+    save_subscribers()
 
     if message.from_user.id == ADMIN_ID:
         await message.answer("🔔 Ты подписан и будешь получать экстренные оповещения!\n\n👑Админ-панель!\n\nВАЖНО!\nДанный бот не является ботом МЧС России. Бот создан для оперативного оповещения граждан Самарской области.\n\nУсловные обозначения, если увидите уведомление и чтобы не читать все сразу:\n❗— Опасность БПЛА\n‼️— Ракетная опасность\n✅ — Отбой ракетной опасности или опасности БПЛА\n📢 — Прочие оповещения", reply_markup=keyboard)
@@ -185,7 +211,9 @@ async def handler(message: Message):
     user_id = message.from_user.id
     text = message.text
 
+    if user_id not in subscribers:
     subscribers.add(user_id)
+    save_subscribers()
 
     # ❗ СНАЧАЛА админ команды
     if user_id == ADMIN_ID:
